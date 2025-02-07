@@ -4,13 +4,15 @@ from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from model import Yihao
+# 定义训练的设备
+# device = torch.device("cpu") # 利用CPU
+device = torch.device("cuda:0")  # 利用GPU 还可以指定具体的GPU
 
 # 准备训练数据集
-train_data = torchvision.datasets.CIFAR10(root="../data", train=True,
+train_data = torchvision.datasets.CIFAR10(root="../../data", train=True,
                                           transform=torchvision.transforms.ToTensor(), download=True)
 # 准备测试数据集
-test_data = torchvision.datasets.CIFAR10(root="../data", train=False,
+test_data = torchvision.datasets.CIFAR10(root="../../data", train=False,
                                          transform=torchvision.transforms.ToTensor(), download=True)
 # 准备训练和测试数据集长度
 train_data_size = len(train_data)
@@ -22,11 +24,45 @@ print("测试数据集的长度 {}", format(test_data_size))
 train_dataloader = DataLoader(train_data, batch_size=64, num_workers=0)
 test_dataloader = DataLoader(test_data, batch_size=64, num_workers=0)
 
+
 # 创建网络模型
+
+class Yihao(nn.Module):
+    def __init__(self):
+        super(Yihao, self).__init__()
+        #  借助 CIFAR10 模型结构理解卷积神经网络及Sequential的使用 https://blog.csdn.net/m0_48241022/article/details/132634215
+        self.model = nn.Sequential(
+            nn.Conv2d(3, 32, 5, 1, 2),
+            nn.MaxPool2d(2),
+            nn.Conv2d(32, 32, 5, 1, 2),
+            nn.MaxPool2d(2),
+            nn.Conv2d(32, 64, 5, 1, 2),
+            nn.MaxPool2d(2),
+            nn.Flatten(),
+            nn.Linear(64 * 4 * 4, 64),
+            nn.Linear(64, 10)
+        )
+
+    def forward(self, x):
+        x = self.model(x)
+        return x
+
+
 yihao = Yihao()
+# 利用device训练
+yihao = yihao.to(device)
+
+# 将网络模型转移到 CUDA 利用 GPU 训练
+# if torch.cuda.is_available():
+#     yihao = yihao.cuda()
 
 # 损失函数 交叉熵
 loss_fn = nn.CrossEntropyLoss()
+loss_fn = loss_fn.to(device)
+
+# 将网络模型转移到 CUDA 利用 GPU 训练
+# if torch.cuda.is_available():
+#     loss_fn = loss_fn.cuda()
 
 # 优化器
 learning_rate = 1e-3  # (1 * (10) ^ -2)
@@ -41,6 +77,7 @@ total_test_step = 0
 
 # 训练的轮数
 epoch = 10
+
 
 def train_optimizer():
     # ==== 优化器优化模型 === #
@@ -61,6 +98,12 @@ for i in range(epoch):
     yihao.train()
     for data in train_dataloader:
         imgs, targets = data
+        # 将网络模型转移到 CUDA 利用 GPU 训练
+        # if torch.cuda.is_available():
+        #     imgs = imgs.cuda()
+        #     targets = targets.cuda()
+        imgs = imgs.to(device)
+        targets = targets.to(device)
         # 将训练数据放到网络中
         outputs = yihao(imgs)
         # 将预测输出outputs和真实targets放到损失函数当中
@@ -83,6 +126,12 @@ for i in range(epoch):
     with torch.no_grad():
         for data in test_dataloader:
             imgs, targets = data
+            # 将网络模型转移到 CUDA 利用 GPU 训练
+            # if torch.cuda.is_available():
+            #     imgs = imgs.cuda()
+            #     targets = targets.cuda()
+            imgs = imgs.to(device)
+            targets = targets.to(device)
             outputs = yihao(imgs)
             loss = loss_fn(outputs, targets)
             # 把每一次的loss加到整体的loss上
@@ -102,7 +151,7 @@ for i in range(epoch):
     # 保存模型
 
     # torch.save(yihao, "yihao_{}.pth".format(i)) # 方式一
-    torch.save(yihao.state_dict(), "yihao_{}.pth".format(i)) # 方式二
+    torch.save(yihao.state_dict(), "yihao_{}.pth".format(i))  # 方式二
     print("模型已保存")
 
 writer.close()
